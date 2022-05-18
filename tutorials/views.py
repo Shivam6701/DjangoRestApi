@@ -11,6 +11,7 @@ from passlib.hash import bcrypt
 from tutorials.models import Post,User
 from tutorials.serializers import PostSerializer,UserSerializer,UserOutSerializer,UserLogin
 from rest_framework.decorators import api_view
+from . import oauth2
 
 @api_view(['GET', 'POST', 'DELETE'])
 def post_list(request):
@@ -26,31 +27,38 @@ def post_list(request):
         # 'safe=False' for objects serialization
        
     elif request.method == 'POST':
+        #bearer = request.headers['Authorization']
+        #token = bearer.split()[1]
+        #user_id: int = oauth2.get_current_user(token)
+        user_id=oauth2.get_current_user(request)
         post_data = JSONParser().parse(request)
         post_serializer = PostSerializer(data=post_data)
         if post_serializer.is_valid():
             post_serializer.save()
             return JsonResponse(post_serializer.data, status=status.HTTP_201_CREATED)
         return JsonResponse(post_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+    """
     elif request.method == 'DELETE':
+        user_id=oauth2.get_current_user(request)
         count = Post.objects.all().delete()
-        return JsonResponse({'message': '{} Tutorials were deleted successfully!'.format(count[0])},
+        return JsonResponse({'message': '{} Posts were deleted successfully!'.format(count[0])},
                             status=status.HTTP_204_NO_CONTENT)
-
+    """
 
 @api_view(['GET', 'PUT', 'DELETE'])
 def post_detail(request, pk):
     try:
         post = Post.objects.get(pk=pk)
     except Post.DoesNotExist:
-        return JsonResponse({'message': 'The tutorial does not exist'}, status=status.HTTP_404_NOT_FOUND)
+        return JsonResponse({'message': 'The post does not exist'}, status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'GET':
         post_serializer = PostSerializer(post)
         return JsonResponse(post_serializer.data)
 
     elif request.method == 'PUT':
+        user_id=oauth2.get_current_user(request)
+
         post_data = JSONParser().parse(request)
         post_serializer = PostSerializer(post, data=post_data)
         if post_serializer.is_valid():
@@ -59,16 +67,17 @@ def post_detail(request, pk):
         return JsonResponse(post_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == 'DELETE':
+        user_id=oauth2.get_current_user(request)
         post.delete()
-        return JsonResponse({'message': 'Tutorial was deleted successfully!'}, status=status.HTTP_204_NO_CONTENT)
+        return JsonResponse({'message': 'Post was deleted successfully!'}, status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])
 def post_list_published(request):
-    tutorials = Post.objects.filter(published=True)
+    posts = Post.objects.filter(published=True)
 
     if request.method == 'GET':
-        post_serializer = PostSerializer(tutorials, many=True)
+        post_serializer = PostSerializer(posts, many=True)
         return JsonResponse(post_serializer.data, safe=False)
 
 
@@ -118,9 +127,10 @@ def user_Login(request):
     try:
         user = User.objects.get(email=email)
         if not bcrypt.verify (password,user.password) :
-            return JsonResponse({'message': 'Invalid credentials'}, status=status.HTTP_404_NOT_FOUND)
+            return JsonResponse({'message': 'Invalid credentials'}, status=status.HTTP_403_FORBIDDEN)
         else:
             #create token
-            return JsonResponse({"token":"exampleToken"})
+            access_token= oauth2.create_access_token(data={"user_id":user.id})
+            return JsonResponse({"Access_token":access_token, "token_type": "bearer"})
     except User.DoesNotExist:
-        return JsonResponse({'message': 'Invalid credentials'}, status=status.HTTP_404_NOT_FOUND)
+        return JsonResponse({'message': 'Invalid credentials'}, status=status.HTTP_403_FORBIDDEN)
