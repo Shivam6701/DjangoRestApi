@@ -1,7 +1,8 @@
 from enum import auto
 from typing import Optional
+import django
 from django.db import models
-
+from sqlalchemy.orm import relationship
 
 class Post(models.Model):
     title = models.CharField(max_length=70, blank=False, default='')
@@ -9,6 +10,8 @@ class Post(models.Model):
     published = models.BooleanField(default=False)
     created_at=models.DateTimeField(auto_now_add=True)
 
+    owner_id=models.ForeignKey("User", on_delete=models.CASCADE,null=False)
+    
     def __str__(self):
         return self.title
 

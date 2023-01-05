@@ -9,7 +9,9 @@ class PostSerializer(serializers.ModelSerializer):
         fields = ('id',
                   'title',
                   'content',
-                  'published')
+                  'published',
+                  'owner_id',
+                  )
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

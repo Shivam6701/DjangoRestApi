@@ -6,12 +6,14 @@ from django.shortcuts import render
 from django.contrib.auth.hashers import make_password,check_password
 from django.http.response import JsonResponse
 from rest_framework.parsers import JSONParser
-from rest_framework import status
+from rest_framework import status,filters
 from passlib.hash import bcrypt
 from tutorials.models import Post,User
 from tutorials.serializers import PostSerializer,UserSerializer,UserOutSerializer,UserLogin
 from rest_framework.decorators import api_view
 from . import oauth2
+from rest_framework.pagination import LimitOffsetPagination
+
 
 @api_view(['GET', 'POST', 'DELETE'])
 def post_list(request):
@@ -21,18 +23,19 @@ def post_list(request):
         title = request.GET.get('title', None)
         if title is not None:
             post = post.filter(title__icontains=title)
-
-        posts_serializer = PostSerializer(post, many=True)
+        # for pagination i.e limit and offset
+        pagination_class = LimitOffsetPagination()
+        result_page = pagination_class.paginate_queryset(post, request)
+        posts_serializer = PostSerializer(result_page, many=True)
+        
         return JsonResponse(posts_serializer.data, safe=False)
         # 'safe=False' for objects serialization
        
     elif request.method == 'POST':
-        #bearer = request.headers['Authorization']
-        #token = bearer.split()[1]
-        #user_id: int = oauth2.get_current_user(token)
-        user_id=oauth2.get_current_user(request)
+        current_user=oauth2.get_current_user(request)
         post_data = JSONParser().parse(request)
         post_serializer = PostSerializer(data=post_data)
+        post_serializer.initial_data['owner_id']=current_user.data['id']
         if post_serializer.is_valid():
             post_serializer.save()
             return JsonResponse(post_serializer.data, status=status.HTTP_201_CREATED)
@@ -57,19 +60,29 @@ def post_detail(request, pk):
         return JsonResponse(post_serializer.data)
 
     elif request.method == 'PUT':
-        user_id=oauth2.get_current_user(request)
+        current_user=oauth2.get_current_user(request)
 
         post_data = JSONParser().parse(request)
+        old_post_serializer=PostSerializer(post)
         post_serializer = PostSerializer(post, data=post_data)
-        if post_serializer.is_valid():
+        post_serializer.initial_data['owner_id']=old_post_serializer.data['owner_id']
+        if current_user.data['id']!=post_serializer.initial_data['owner_id'] :
+                return JsonResponse({'message': 'Not Authorized to perform action'}, status=status.HTTP_403_FORBIDDEN)
+    
+        if post_serializer.is_valid():   
             post_serializer.save()
             return JsonResponse(post_serializer.data)
         return JsonResponse(post_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == 'DELETE':
-        user_id=oauth2.get_current_user(request)
-        post.delete()
-        return JsonResponse({'message': 'Post was deleted successfully!'}, status=status.HTTP_204_NO_CONTENT)
+        current_user=oauth2.get_current_user(request)
+        post_serializer = PostSerializer(post)
+        if current_user.data['id']==post_serializer.data['owner_id'] :
+            post.delete()
+            return JsonResponse({'message': 'Post was deleted successfully!'}, status=status.HTTP_204_NO_CONTENT)
+        else:
+            return JsonResponse({'message': 'Not Authorized to perform action'}, status=status.HTTP_403_FORBIDDEN)
+
 
 
 @api_view(['GET'])

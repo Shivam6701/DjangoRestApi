@@ -5,7 +5,8 @@ from jose import JWTError,jwt
 from datetime import datetime, timedelta
 from rest_framework import status
 from . import schemas
-
+from tutorials.models import User
+from tutorials.serializers import UserSerializer
 #Secret key
 #algoritm
 #expiration time
@@ -42,5 +43,11 @@ def get_current_user(request):
     bearer = request.headers['Authorization']
     token = bearer.split()[1]
     credentials_exception= exceptions.AuthenticationFailed
-    return verify_access_token(token, credentials_exception)
+    token_id=verify_access_token(token, credentials_exception)
+    try:
+        user= User.objects.get(pk=token_id.id)
+        user_serializer = UserSerializer(user)
+        return user_serializer
+    except:
+        raise credentials_exception
 
